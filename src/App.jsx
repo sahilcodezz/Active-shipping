@@ -1,717 +1,550 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
+import Lenis from 'lenis'
+import gsap from 'gsap'
+import { ScrollTrigger } from 'gsap/ScrollTrigger'
+import {
+  Anchor,
+  Globe,
+  Navigation,
+  Phone,
+  Mail,
+  MapPin,
+  ArrowRight,
+  Menu,
+  X,
+  Radio,
+} from 'lucide-react'
 
-const App = () => {
-  const [showTop, setShowTop] = useState(false)
+import { WaveCanvas } from './components/WaveCanvas'
+import { SplitButton } from './components/SplitButton'
+import { HorizontalScrollSection } from './components/HorizontalScrollSection'
+import { RouteMap } from './components/RouteMap'
+import { QuoteCalculator } from './components/QuoteCalculator'
+import { ComparisonMatrix } from './components/ComparisonMatrix'
+import { OrbitGlowToggle } from './components/OrbitGlowToggle'
 
+gsap.registerPlugin(ScrollTrigger)
+
+export const App = () => {
+  const [navScrolled, setNavScrolled] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('theme') || 'dark'
+  })
+
+  const lenisRef = useRef(null)
+
+  const navItems = [
+    { num: '01', label: 'Capabilities', href: '#capabilities' },
+    { num: '02', label: 'Press & Missions', href: '#press' },
+    { num: '03', label: 'Live Routes', href: '#routes' },
+    { num: '04', label: 'Calculator', href: '#calculator' },
+    { num: '05', label: 'Contact', href: '#contact', variant: 'primary' },
+  ]
+
+  // Lock smooth scroll while the mobile drawer is open
   useEffect(() => {
-    const handleScroll = () => {
-      setShowTop(window.scrollY > 20)
-      const header = document.getElementById('site-header')
-      if (header) {
-        header.classList.toggle('nav-fixed', window.scrollY >= 80)
-      }
+    if (mobileMenuOpen) {
+      lenisRef.current?.stop()
+      document.body.style.overflow = 'hidden'
+    } else {
+      lenisRef.current?.start()
+      document.body.style.overflow = ''
     }
-    window.addEventListener('scroll', handleScroll)
-    handleScroll()
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [mobileMenuOpen])
 
+  // Auto-close the drawer when jumping to desktop width
   useEffect(() => {
-    let cancelled = false
-    let tries = 0
-    let timeoutId
-
-    const header = document.getElementById('site-header')
-    const onTogglerClick = () => {
-      header?.classList.toggle('active')
-      document.body.classList.toggle('noscroll')
-    }
-    const toggler = document.querySelector('.navbar-toggler')
-    toggler?.addEventListener('click', onTogglerClick)
     const onResize = () => {
-      if (window.innerWidth > 991) header?.classList.remove('active')
+      if (window.innerWidth >= 1101) setMobileMenuOpen(false)
     }
     window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
-    const initCarousels = () => {
-      if (cancelled) return
-      const $ = window.jQuery
-      if (!$ || !$.fn || !$.fn.owlCarousel) {
-        if (tries < 40) {
-          tries += 1
-          timeoutId = window.setTimeout(initCarousels, 50)
-        }
-        return
-      }
+  // Synchronize initial theme with document data-theme attribute
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('theme', theme)
+  }, [theme])
 
-      $('.owl-one').owlCarousel({
-        loop: true,
-        margin: 0,
-        nav: false,
-        responsiveClass: true,
-        autoplay: true,
-        autoplayTimeout: 5000,
-        autoplaySpeed: 1000,
-        autoplayHoverPause: false,
-        responsive: {
-          0: { items: 1 },
-          480: { items: 1 },
-          667: { items: 1 },
-          1000: { items: 1 },
-        },
+  // Circle Reveal Theme Transition
+  const toggleThemeWithCircleReveal = (e) => {
+    const nextTheme = theme === 'dark' ? 'light' : 'dark'
+
+    if (document.startViewTransition) {
+      const x = e ? e.clientX : window.innerWidth - 60
+      const y = e ? e.clientY : 40
+      const endRadius = Math.hypot(
+        Math.max(x, window.innerWidth - x),
+        Math.max(y, window.innerHeight - y)
+      )
+
+      const transition = document.startViewTransition(() => {
+        setTheme(nextTheme)
+        document.documentElement.setAttribute('data-theme', nextTheme)
+        localStorage.setItem('theme', nextTheme)
       })
 
-      $('#owl-demo1').owlCarousel({
-        loop: true,
-        margin: 20,
-        nav: false,
-        responsiveClass: true,
-        responsive: {
-          0: { items: 1, nav: false },
-          768: { items: 1, nav: false },
-          1000: { items: 1, nav: false, loop: false },
-        },
+      transition.ready.then(() => {
+        document.documentElement.animate(
+          {
+            clipPath: [
+              `circle(0px at ${x}px ${y}px)`,
+              `circle(${endRadius}px at ${x}px ${y}px)`,
+            ],
+          },
+          {
+            duration: 650,
+            easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+            pseudoElement: '::view-transition-new(root)',
+          }
+        )
       })
+    } else {
+      setTheme(nextTheme)
+      document.documentElement.setAttribute('data-theme', nextTheme)
+      localStorage.setItem('theme', nextTheme)
     }
+  }
 
-    initCarousels()
+  // 1. Initialize Lenis Smooth Inertia Scroll & GSAP Sync
+  useEffect(() => {
+    const lenis = new Lenis({
+      duration: 1.2,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      orientation: 'vertical',
+      gestureOrientation: 'vertical',
+      smoothWheel: true,
+      wheelMultiplier: 1,
+      touchMultiplier: 2,
+    })
+
+    lenis.on('scroll', (e) => {
+      ScrollTrigger.update()
+      setNavScrolled(e.scroll > 50)
+    })
+
+    lenisRef.current = lenis
+
+    const updateTicker = (time) => {
+      lenis.raf(time * 1000)
+    }
+    gsap.ticker.add(updateTicker)
+    gsap.ticker.lagSmoothing(0)
 
     return () => {
-      cancelled = true
-      window.clearTimeout(timeoutId)
-      toggler?.removeEventListener('click', onTogglerClick)
-      window.removeEventListener('resize', onResize)
-      const $ = window.jQuery
-      if ($ && $.fn && $.fn.owlCarousel) {
-        try {
-          $('.owl-one').owlCarousel('destroy')
-          $('#owl-demo1').owlCarousel('destroy')
-        } catch {
-          /* ignore */
-        }
-      }
+      gsap.ticker.remove(updateTicker)
+      lenisRef.current = null
+      lenis.destroy()
     }
   }, [])
 
-  const topFunction = () => {
-    window.scrollTo({ top: 0 })
-  }
+  // Capabilities Showcase Data
+  const capabilities = [
+    {
+      category: 'PRIMARY MARITIME SERVICE',
+      title: 'Ocean Freight (FCL & LCL)',
+      description:
+        'Full container loads and consolidated freight with guaranteed space allocation on major ocean carriers operating through JNPT / Nhava Sheva.',
+      image: '/assets/images/Active_Shipping_and_Logistics_Service_1.jpg',
+      specs: [
+        { label: 'TRANSIT RELIABILITY', value: '99.4%' },
+        { label: 'CONTAINER TYPES', value: '20ft / 40ft / High-Cube / Flat-Rack' },
+      ],
+    },
+    {
+      category: 'CRITICAL EXPEDITED',
+      title: 'Global Air Cargo Express',
+      description:
+        'Time-critical air freight forwarding connecting Mumbai International Cargo Terminal to all European, American, and Asian economic epicenters.',
+      image: '/assets/images/Active_Shipping_and_Logistics_Service_2.jpg',
+      specs: [
+        { label: 'DOOR-TO-DOOR', value: '48 - 72 Hours' },
+        { label: 'CUSTOMS FAST-TRACK', value: '24/7 Dedicated Team' },
+      ],
+    },
+    {
+      category: 'HAZMAT & COMPLIANCE',
+      title: 'Dangerous Goods & IMO Cargo',
+      description:
+        'Specialized certified handling for Class 1 to 9 hazardous materials, industrial chemicals, and temperature-sensitive pharmaceutical shipments.',
+      image: '/assets/images/Active_Shipping_and_Logistics_Service_3.jpg',
+      specs: [
+        { label: 'COMPLIANCE', value: 'IMO / IATA / DGCA Certified' },
+        { label: 'PACKAGING', value: 'UN-Certified Spec' },
+      ],
+    },
+    {
+      category: 'HEAVY ENGINEERING',
+      title: 'Project Cargo & Breakbulk',
+      description:
+        'End-to-end engineered logistics for oversized infrastructure, plant machinery, turbines, and industrial equipment requiring breakbulk charters.',
+      image: '/assets/images/Active_Shipping_and_Logistics_Service_4.jpg',
+      specs: [
+        { label: 'MAX CAPACITY', value: 'Up to 500+ Metric Tons' },
+        { label: 'ROUTE SURVEY', value: 'In-house Engineering' },
+      ],
+    },
+    {
+      category: 'INTEGRATED SUPPLY CHAIN',
+      title: 'Customs Clearance & Warehousing',
+      description:
+        'Direct licensed Customs House Agency (CHA) operations combined with modern bonded and temperature-controlled multi-modal warehousing.',
+      image: '/assets/images/Active_Shipping_and_Logistics_about.jpg',
+      specs: [
+        { label: 'CLEARANCE TIME', value: '< 24 Hours Standard' },
+        { label: 'STORAGE', value: 'Bonded & Ambient Facilities' },
+      ],
+    },
+  ]
+
+  // Press & Mission Highlights Data (Seasats #press style)
+  const pressMissions = [
+    {
+      category: 'OPERATIONAL MILESTONE',
+      title: '10+ Years of Maritime Excellence',
+      description:
+        'A decade of delivering reliable ocean freight forwarding, handling over 120,000 TEUs across international corridors with zero major safety incidents.',
+      image: '/assets/images/10years.jpg',
+      specs: [
+        { label: 'FOUNDED', value: 'Mumbai, India' },
+        { label: 'ANNUAL VOLUME', value: '15,000+ TEUs' },
+      ],
+    },
+    {
+      category: 'NETWORK EXPANSION',
+      title: 'Direct Trans-Suez European Corridors',
+      description:
+        'Established dedicated vessel charters providing direct expedited schedules between Mumbai (JNPT) and Rotterdam / Antwerp / Hamburg.',
+      image: '/assets/images/banner1.jpg',
+      specs: [
+        { label: 'TRANSIT TIME', value: '18 Days Average' },
+        { label: 'PORT COVERAGE', value: '6 Major Hubs' },
+      ],
+    },
+    {
+      category: 'INFRASTRUCTURE UPGRADE',
+      title: 'Chemical & Pharma Cold-Chain Fleet',
+      description:
+        'Deployment of GPS-monitored reefer container services offering live temperature telemetry and humidity logging for high-value chemical exports.',
+      image: '/assets/images/banner2.jpg',
+      specs: [
+        { label: 'TEMPERATURE RANGE', value: '-25Â°C to +25Â°C' },
+        { label: 'MONITORING', value: 'Live Satellite AIS' },
+      ],
+    },
+    {
+      category: 'STRATEGIC LOGISTICS',
+      title: 'Multi-Modal Gulf & Southeast Asian Feeder',
+      description:
+        'Expanded daily feeder loops connecting western Indian ports to Jebel Ali (UAE), Singapore, and Port Klang with same-day customs handover.',
+      image: '/assets/images/banner3.jpg',
+      specs: [
+        { label: 'FREQUENCY', value: 'Daily Scheduled Departures' },
+        { label: 'RELIABILITY', value: '99.8% On-Time' },
+      ],
+    },
+  ]
 
   return (
     <>
-      <style>{`
-.float{
-position:fixed;
-width:60px;
-height:60px;
-bottom:60px;
-right:80px;
-background-color:#25d366;
-color:#FFF;
-border-radius:50px;
-text-align:center;
-  font-size:30px;
-box-shadow: 2px 2px 3px #999;
-  z-index:100;
-}
-.my-float{
-	margin-top:16px;
-}
-textspan {
- /* background-color: #ffffff; */
-}
-#hp  {
-float: right;    
-}
-      `}</style>
+      {/* Seasats Dynamic Ambient Background */}
+      <div className="seasats-ambient-bg">
+        <div className="ambient-gradient"></div>
+        <div className="ambient-grid"></div>
+      </div>
 
-      {/* top header */}
-      <a href="https://api.whatsapp.com/send?phone=919833672298&text=inquiry" className="float" target="_blank" rel="noreferrer">
-        <i className="fab fa-whatsapp my-float"></i>
-      </a>
-      <section className="w3l-top-header py-3">
-        <div className="container">
-          <img src="assets/images/10years.jpg" style={{ width: '90px', float: 'right', top: '80px', right: '80px' }} alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" />
-          <div className="d-grid main-top">
-            <div className="top-header-left">
-              <ul className="info-top-gridshny">
-                <li className="info-grid">
-                  <div className="info-icon"><span className="far fa-envelope"></span></div>
-                  <div className="info-text">
-                    <p style={{ textTransform: 'lowercase' }}><a href="mailto:sales@activeshpg.com">sales@activeshpg.com</a></p>
-                    <p style={{ textTransform: 'lowercase' }}><a href="mailto:contact@activeshpg.com">contact@activeshpg.com</a></p>
-                  </div>
-
-                </li>
-                <li className="info-grid">
-                  <div className="info-icon"><span className="fas fa-phone-alt"></span></div>
-                  <div className="info-text">
-                    <p><a href="tel:+91 9833672298">+91 9833672298</a></p>
-                    <p><a href="tel:+91 9821253239">+91 9821253239</a></p>
-                  </div>
-
-                </li>
-                <li className="info-grid">
-                  <div className="info-icon"><span className="fas fa-map-marker-alt"></span></div>
-                  <div className="info-text">
-                    <p>Navjeevan Co-Op, Office No.18,</p>
-                    <p>Malad East. Mumbai 97</p>
-
-                  </div>
-
-                </li>
-
-              </ul>
-            </div>
-            {/*
-            <div className="top-header-right text-lg-right">
-                <ul>
-                    <li>
-                        <a href="https://www.facebook.com/people/Active-Shipping-and-Logistics/100054488078426/" target="_blank" rel="noreferrer"><span className="fab fa-facebook-f"></span></a>
-                    </li>
-                    <li>
-                        <a href="#twitter"><span className="fab fa-twitter"></span></a>
-                    </li>
-                    <li><a href="#instagram" className="instagram mr-0"><span className="fab fa-instagram"></span></a></li>
-
-                </ul>
-            </div>
-            */}
+      {/* Modern Seasats-Inspired Glass Header */}
+      <header className={`seasats-nav ${navScrolled ? 'nav-scrolled' : ''}`}>
+        <a href="#hero" className="nav-brand">
+          <div className="nav-logo-badge">
+            <Anchor size={22} color="var(--color-primary)" />
           </div>
-        </div>
-      </section>
-      {/* //top header */}
+          <div>
+            <div className="nav-title">ACTIVE SHIPPING</div>
+            <div className="nav-subtitle">& LOGISTICS // MUMBAI</div>
+          </div>
+        </a>
 
-      {/*/Header*/}
-      <header id="site-header" className="">
-        <div className="container">
-          <nav className="navbar navbar-expand-lg navbar-light stroke py-lg-0">
-            <h6><a className="navbar-brand pe-xl-5 pe-lg-4" href="index.html">
-              <img src="assets/images/active-shipping-cargo-frieght-logistic-and-transportation-logo.png" alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" title="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" style={{ height: '35px' }} />Active Shipping And Logistics
-            </a></h6>
+        {/* Desktop Navigation Links */}
+        <nav className="nav-links">
+          {navItems.map((item) => (
+            <SplitButton
+              key={item.num}
+              text={`${item.num} ${item.label}`}
+              href={item.href}
+              variant={item.variant || 'default'}
+            />
+          ))}
+        </nav>
 
+        {/* Persistent Action Group - Always Visible (Never Hidden) */}
+        <div className="nav-actions">
+          <OrbitGlowToggle theme={theme} onToggle={toggleThemeWithCircleReveal} />
 
-            <button className="navbar-toggler collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#navbarScroll" aria-controls="navbarScroll" aria-expanded="false" aria-label="Toggle navigation">
-              <span className="navbar-toggler-icon fa icon-expand fa-bars"></span>
-              <span className="navbar-toggler-icon fa icon-close fa-times"></span>
-            </button>
-            <div className="collapse navbar-collapse" id="navbarScroll">
-              <ul className="navbar-nav ms-lg-auto my-2 my-lg-0 navbar-nav-scroll">
-                <li className="nav-item">
-                  <a className="nav-link active" aria-current="page" href="index.html">Home</a>
-                </li>
-                <li className="nav-item">
-                  <a className="nav-link" href="about.html">About</a>
-                </li>
-                {/*
-                <li className="nav-item">
-                    <a className="nav-link" href="services.html">Services</a>
-                </li>
-                */}
-                <li className="nav-item dropdown">
-                  <a className="nav-link dropdown-toggle" href="#Pages" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                    Services <span className="fa fa-angle-down ms-1"></span>
-                  </a>
-                  <ul className="dropdown-menu" aria-labelledby="navbarDropdown" style={{ backgroundImage: "url('assets/images/Active_Shipping_and_Logistics_Service_2.jpg')", backgroundRepeat: 'no-repeat' }}>
-
-                    <li><a className="dropdown-item" href="Active-Shipping-and-Logistics-Air-Freight.html" style={{ color: '#ffffff' }}><textspan>Air Freight</textspan></a></li>
-                    <li><a className="dropdown-item" href="Active-Shipping-and-Logistics-Ocean-Freight.html" style={{ color: '#ffffff' }}><textspan>Ocean Freight<br />LCL/FCL/<br />Special Equipments</textspan></a></li>
-                    <li><a className="dropdown-item" href="Active-Shipping-and-Logistics-Land-Transportation.html" style={{ color: '#ffffff' }}><textspan>Land Transportation</textspan></a></li>
-                    <li><a className="dropdown-item" href="Active-Shipping-and-Logistics-Warehousing-and-Distribution.html" style={{ color: '#ffffff' }}><textspan>Warehousing <br />& Distribution</textspan></a></li>
-                    <li><a className="dropdown-item" href="Active-Shipping-and-Logistics-Customs-Clearance-and-Door-delivery.html" style={{ color: '#ffffff' }}><textspan>Customs Clearance</textspan></a></li>
-                    <li><a className="dropdown-item" href="https://activeshpg.com/Active-Shipping-and-Logistics-Baggage.html" style={{ color: '#ffffff' }}><textspan>Personal Baggage</textspan></a></li>
-                    <li><a className="dropdown-item" href="Active-Shipping-and-Logistics-Packing-and-Removals.html" style={{ color: '#ffffff' }}><textspan>Packing & Removals</textspan></a></li>
-                    <li><a className="dropdown-item" href="Active-Shipping-and-Logistics-Dangerous-Goods.html" style={{ color: '#ffffff' }}><textspan>Dangerous goods</textspan></a></li>
-                    <li><a className="dropdown-item" href="Active-Shipping-and-Logistics-Services.html" style={{ color: '#ffffff' }}><textspan>Transshipment<br />(sea to air, air to air)</textspan></a></li>
-                    <li><a className="dropdown-item" href="Active-Shipping-and-Logistics-Services.html"><textspan>Project management</textspan></a></li>
-                    <li><a className="dropdown-item" href="Active-Shipping-and-Logistics-Services.html"><textspan>RO-RO and <br />Break bulk operation</textspan></a></li>
-                    <li><a className="dropdown-item" href="Active-Shipping-and-Logistics-Services.html"><textspan>Cargo charter</textspan></a></li>
-                  </ul>
-                </li>
-
-                <li className="nav-item dropdown">
-                  <a className="nav-link dropdown-toggle" href="#Pages" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                    Branches <span className="fa fa-angle-down ms-1"></span>
-                  </a>
-                  <ul className="dropdown-menu" aria-labelledby="navbarDropdown" style={{ backgroundImage: "url('assets/images/Active_Shipping_and_Logistics_Service_2.jpg')", backgroundRepeat: 'no-repeat' }}>
-                    <li><a className="dropdown-item" href="locations.html" style={{ color: '#ffffff' }}><textspan>Mumbai , M.H</textspan></a>
-                    </li>
-                    <li><a className="dropdown-item" href="locations.html" style={{ color: '#ffffff' }}><textspan>Visakhapatnam, A.P</textspan></a>
-                    </li>
-                    <li><a className="dropdown-item" href="locations.html" style={{ color: '#ffffff' }}><textspan>Kakinada, A.P</textspan></a>
-                    </li>
-                    <li><a className="dropdown-item" href="locations.html" style={{ color: '#ffffff' }}><textspan>Kolkata, W.B</textspan></a>
-                    </li>
-                    <li><a className="dropdown-item" href="locations.html" style={{ color: '#ffffff' }}><textspan>Chennai, T.N</textspan></a>
-                    </li>
-                    <li><a className="dropdown-item" href="locations.html" style={{ color: '#ffffff' }}><textspan>Mundra, G.J</textspan></a>
-                    </li>
-                    <li><a className="dropdown-item" href="locations.html" style={{ color: '#ffffff' }}><textspan>Hyderabad , T.L</textspan></a>
-                    </li>
-                    <li><a className="dropdown-item" href="locations.html" style={{ color: '#ffffff' }}><textspan>Delhi</textspan></a>
-                    </li>
-                  </ul>
-                </li>
-                <li className="nav-item">
-                  <a className="nav-link" href="contact.html">Contact</a>
-                </li>
-              </ul>
-
-              {/*/search-right*/}
-              <ul className="header-search mx-lg-4">
-                <div className="w3hny-search">
-                  <form action="processsearch.php" method="post" className="d-flex search-form">
-                    <input className="form-control" type="search" placeholder="Search..." name="inputsearch" aria-label="Search" required="" />
-                    <button className="btn btn-style btn-primary" type="submit"><i className="fas fa-search"></i></button>
-                  </form>
-                </div>
-              </ul>
-              {/*//search-right*/}
-            </div>
-            {/* toggle switch for light and dark theme */}
-            <div className="mobile-position">
-              <nav className="navigation">
-                <div className="theme-switch-wrapper">
-                  <label className="theme-switch" htmlFor="checkbox">
-                    <input type="checkbox" id="checkbox" />
-                    <div className="mode-container">
-                      <i className="gg-sun"></i>
-                      <i className="gg-moon"></i>
-                    </div>
-                  </label>
-                </div>
-              </nav>
-            </div>
-            {/* //toggle switch for light and dark theme */}
-          </nav>
+          {/* Mobile Menu Hamburger (Visible only on mobile) */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="orbit-toggle-core mobile-menu-btn"
+            aria-label="Toggle Navigation Menu"
+            aria-expanded={mobileMenuOpen}
+          >
+            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
         </div>
       </header>
-      {/*//Header*/}
-      {/*/Banner-Start*/}
-      {/* main-slider */}
-      <section className="w3l-main-slider banner-slider" id="home">
-        <div className="owl-one owl-carousel owl-theme">
-          <div className="item">
-            <div
-              className="slider-info banner-view banner-top1"
-              style={{ backgroundImage: 'url(/assets/images/banner1.jpg)' }}
+
+      {/* Mobile Menu Drawer */}
+      {mobileMenuOpen && (
+        <div className="mobile-drawer" role="dialog" aria-modal="true">
+          <div className="drawer-kicker">
+            <span className="status-dot"></span>
+            NAVIGATION // ACTIVE SHIPPING
+          </div>
+
+          {navItems.map((item, idx) => (
+            <a
+              key={item.num}
+              href={item.href}
+              onClick={() => setMobileMenuOpen(false)}
+              className={`drawer-link ${item.variant === 'primary' ? 'primary' : ''}`}
+              style={{ animationDelay: `${120 + idx * 60}ms` }}
             >
-              <div className="container">
-                <div className="banner-info header-hero-19 pt-lg-5">
-                  <h3 className="title-hero-19">Air freight</h3>
-                  <h3 className="title-hero-19">Air Cargo Management</h3>
-                  <p className="mt-4">ASL Air Freight division is a proven success in the realm of its operation.</p>
-
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="item">
-            <div
-              className="slider-info banner-view banner-top2"
-              style={{ backgroundImage: 'url(/assets/images/banner2.jpg)' }}
-            >
-              <div className="container">
-                <div className="banner-info header-hero-19 pt-lg-5">
-                  <h3 className="title-hero-19">Sea Freight</h3>
-                  <h3 className="title-hero-19">large, heavy and bulky international shipment</h3>
-                  <p className="mt-4">high quality sea freight services for companies of all sizes</p>
-
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="item">
-            <div
-              className="slider-info banner-view banner-top3"
-              style={{ backgroundImage: 'url(/assets/images/banner3.jpg)' }}
-            >
-              <div className="container">
-                <div className="banner-info header-hero-19 pt-lg-5">
-                  <h3 className="title-hero-19">Personal Baggage</h3>
-                  <h3 className="title-hero-19">Packing and crating</h3>
-                  <p className="mt-4">personal belongings and home products are safely and securely packed for transportation</p>
-
-
-                </div>
-              </div>
-            </div>
-          </div>
-          {/*<div className="item">
-              <div className="slider-info banner-view banner-top4">
-                  <div className="container">
-                      <div className="banner-info header-hero-19 pt-lg-5">
-                          <h3 className="title-hero-19">Quality is </h3>
-                          <h3 className="title-hero-19">Our speciality.</h3>
-                          <p className="mt-4">Because we know how important this is for you</p>
-                      </div>
-                  </div>
-              </div>
-          </div>*/}
-
+              <span className="drawer-num">{item.num}</span>
+              <span className="drawer-label">{item.label}</span>
+              <ArrowRight size={18} className="drawer-arrow" />
+            </a>
+          ))}
         </div>
-      </section>
-      {/* //main-slider */}
+      )}
 
-      {/*/w3-grids*/}
-      <section className="w3l-passion-sec2 py-5">
-        <div className="container py-md-5 py-3">
-          <div className="container">
-            <img src="assets/images/10years.jpg" style={{ width: '90px', float: 'right', top: '80px', right: '80px' }} alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" />
-            <div className="row w3l-passion-mid-grids">
-              <div className="col-lg-6 passion-grid-item-info pe-lg-5 mb-lg-0 mb-5">
-                <div className="title-content-two">
-                  <h6 className="title-subw3hny mb-1 text-left">About</h6>
-                  <h1 className="title-w3l mb-4">Active Shipping and Logistics</h1>
-                  <p className="mt-3 pe-lg-5"> A leading India based International Freight Forwarder.</p>
-                </div>
-                <p className="mt-3 pe-lg-5">We offer freight forwarding and logistics services worldwide. Active Shipping and Logistics is well established with experienced personnel who respond efficiently and quickly to our customers and overseas agents. We believe in delivering logistics services on time at competitive prices. We offer best international shipping rates.
-                </p>
-                <div className="w3banner-content-btns">
-                  <a href="about.html" className="btn btn-style btn-primary mt-lg-5 mt-4 me-2">Read More </a>
-                  <a href="contact.html" className="btn btn-style btn-outline-dark mt-lg-5 mt-4">Contact Us </a>
-                </div>
+      {/* Floating WhatsApp Quick Connect */}
+      <a
+        href="https://api.whatsapp.com/send?phone=919833672298&text=Hello%20Active%20Shipping%20Team,%20I%20have%20an%20inquiry%20for%20freight%20services."
+        className="floating-terminal-btn"
+        target="_blank"
+        rel="noreferrer"
+        aria-label="Direct WhatsApp Contact"
+      >
+        <Radio size={18} />
+        <span className="ftb-label">Direct WhatsApp HQ</span>
+      </a>
 
+      {/* 1. HERO SECTION (Seasats Style with Wave Dynamics & Telemetry HUD) */}
+      <section id="hero" className="seasats-hero">
+        <WaveCanvas />
+
+        <div className="hero-grid-layout">
+          {/* Left Column: Headline & Action CTAs */}
+          <div className="hero-left-col">
+            <div className="hero-badge-row">
+              <div className="hero-pill">
+                <span className="status-dot"></span>
+                GLOBAL MARITIME AUTONOMY
               </div>
-              <div className="col-lg-6 w3hny-passion-item">
-                <a href="about.html"><img src="assets/images/Active_Shipping_and_Logistics_about.jpg" alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" className="img-fluid radius-image" />
-                </a>
+              <div className="hero-pill" style={{ borderColor: 'rgba(226, 177, 112, 0.4)', color: 'var(--color-copper)' }}>
+                10+ YEARS PROVEN EXPERTISE
+              </div>
+              <div className="hero-pill">
+                PORT OF MUMBAI // JNPT DIRECT
               </div>
             </div>
 
+            <h1 className="hero-headline">
+              Global Freight Forwarding.<br />
+              <span className="gradient-text">Ocean Precision & Velocity.</span>
+            </h1>
+
+            <p className="hero-subtext">
+              Active Shipping and Logistics connects Mumbai's primary ports to critical global trade lanes. 
+              High-velocity FCL/LCL ocean freight, certified dangerous goods compliance, and licensed in-house customs clearance with zero intermediary friction.
+            </p>
+
+            <div className="hero-cta-group">
+              <SplitButton
+                text="Explore Capabilities"
+                href="#capabilities"
+                variant="primary"
+                icon={<ArrowRight size={18} />}
+              />
+              <SplitButton
+                text="Live Route Radar"
+                href="#routes"
+                icon={<Navigation size={18} />}
+              />
+              <SplitButton
+                text="Calculate Rates"
+                href="#calculator"
+                icon={<Globe size={18} />}
+              />
+            </div>
           </div>
-        </div>
-      </section>
-      {/*//w3-grids*/}
 
-      {/* features section */}
-      <section className="w3l-features py-5 pt-0" id="features">
-        <div className="container py-lg-5 py-md-4 py-2 pt-0">
-          <img src="assets/images/10years.jpg" alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" style={{ width: '90px', float: 'right', top: '80px', right: '80px' }} />
-          <div className="main-cont-wthree-2 align-items-center text-left">
-            <div className="title-content-two">
-              <h6 className="title-subw3hny mb-1 text-left">Services</h6>
-              <h3 className="title-w3l mb-4">Active Shipping and Logistics</h3>
-              <p className="mt-3 pe-lg-5"> </p>
+          {/* Right Column: Live Marine Flight-Deck Telemetry HUD Console */}
+          <div className="hero-hud-card">
+            <div className="hud-header">
+              <span className="hud-title">
+                <Navigation size={16} />
+                PORT MUMBAI // LIVE AIS TELEMETRY
+              </span>
+              <span className="status-dot"></span>
             </div>
-            <div className="row align-items-center">
-              <div className="col-lg-3 col-md-6">
-                <div className="grids-1 box-wrap">
-                  <div className="icon">
-                    <i className="fas fa-plane"></i>
-                  </div>
-                  <h4><a href="#service" className="title-head mb-3">Air freight</a></h4>
-                  <p className="text-para">Active Shipping and Logistics offers sophisticated and innovative Air Cargo. </p>
-                </div>
-              </div>
-              <div className="col-lg-3 col-md-6 mt-lg-0 mt-5">
-                <div className="grids-1 box-wrap">
-                  <div className="icon">
-                    <i className="fas fa-ship"></i>
-                  </div>
-                  <h4><a href="#service" className="title-head mb-3">Ocean freight</a></h4>
-                  <p className="text-para">Sea Freight is the ultimate choice of large, heavy and bulky international shipments.</p>
-                </div>
-              </div>
-              <div className="col-lg-3 col-md-6 mt-md-0 mt-5">
-                <div className="grids-1 box-wrap">
-                  <div className="icon">
-                    <i className="fas fa-warehouse"></i>
-                  </div>
-                  <h4><a href="#service" className="title-head mb-3">Warehousing</a></h4>
-                  <p className="text-para">We provide storage and distribution facility for various products.</p>
-                </div>
-              </div>
-              <div className="col-lg-3 col-md-6 mt-md-0 mt-5">
-                <div className="grids-1 box-wrap">
-                  <div className="icon">
-                    <i className="fas fa-box"></i>
-                  </div>
-                  <h4><a href="#service" className="title-head mb-3">Packing and Removals</a></h4>
-                  <p className="text-para">We are expertise in arranging household, commercial, local and international movements.</p>
-                </div>
-              </div>
-              <div className="col-lg-3 col-md-6 mt-md-0 mt-5">
-                <div className="grids-1 box-wrap">
-                  <div className="icon">
-                    <i className="fas fa-truck"></i>
-                  </div>
-                  <h4><a href="#service" className="title-head mb-3">Transport</a></h4>
-                  <p className="text-para">We have dedicated transport facilities to move cargo within India all sectors including customs clearances.</p>
-                </div>
-              </div>
-              <div className="col-lg-3 col-md-6 mt-md-0 mt-5">
-                <div className="grids-1 box-wrap">
-                  <div className="icon">
-                    <i className="fas fa-check"></i>
-                  </div>
-                  <h4><a href="#service" className="title-head mb-3">Custom Clearance</a></h4>
-                  <p className="text-para">At Active Shipping and Logistics we understand the necessity of smooth customs clearance for our customers.</p>
-                </div>
-              </div>
 
+            {/* Simulated Radar Visual Scanner */}
+            <div className="hud-radar-scanner">
+              <div className="hud-radar-sweep"></div>
+              <div style={{ position: 'absolute', textAlign: 'center', zIndex: 2 }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--color-primary)' }}>
+                  18Â°55'N, 72Â°50'E
+                </div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  BERTH OPTIMAL // 142 ACTIVE VESSELS
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Live Route Dispatch Feed */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div className="hud-route-item">
+                <span style={{ color: 'var(--text-main)', fontWeight: 'bold' }}>JNPT âž” Rotterdam Direct</span>
+                <span style={{ color: 'var(--color-emerald)', fontWeight: 'bold' }}>18 Days</span>
+              </div>
+              <div className="hud-route-item">
+                <span style={{ color: 'var(--text-main)', fontWeight: 'bold' }}>Mumbai âž” Singapore Express</span>
+                <span style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>5 Days</span>
+              </div>
+              <div className="hud-route-item">
+                <span style={{ color: 'var(--text-main)', fontWeight: 'bold' }}>JNPT âž” Jebel Ali Feeder</span>
+                <span style={{ color: 'var(--color-copper)', fontWeight: 'bold' }}>3 Days</span>
+              </div>
             </div>
           </div>
         </div>
-      </section>
-      {/*//features section */}
 
-
-      {/*/w3-grids*/}
-      <section className="w3l-passion-mid-sec py-5">
-        <div className="container py-md-5 py-3">
-          <img src="assets/images/10years.jpg" style={{ width: '90px', float: 'right', top: '80px', right: '80px' }} alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" />
-          <div className="container">
-            <div className="row w3l-passion-mid-grids">
-              <div className="col-lg-6 passion-grid-item-info pe-lg-5 mb-lg-0 mb-5">
-                <div className="title-content-two">
-                  <h6 className="title-subw3hny mb-1 text-left">Quality</h6>
-                  <h3 className="title-w3l mb-4">Your Trusted Logistic Service Partner</h3>
-                </div>
-                <p className="mt-3 pe-lg-5">Active Shipping and Logistics is well established with experienced personnel who respond efficiently and quickly to our customers and overseas agents.</p>
-                <div className="w3banner-content-btns">
-                  <a href="about.html" className="btn btn-style btn-outline-dark mt-lg-5 mt-4">Read More </a>
-                </div>
-
-              </div>
-              <div className="col-lg-6 w3hny-passion-item">
-                <div className="row">
-                  <div className="col-6 passion-grid-item-pic">
-                    <img src="assets/images/Active_Shipping_and_Logistics_Service_1.jpg" alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" className="img-fluid radius-image" />
-                    <img src="assets/images/Active_Shipping_and_Logistics_Service_2.jpg" alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" className="img-fluid radius-image" />
-
-                  </div>
-
-                  <div className="col-6 passion-grid-item-pic">
-                    <img src="assets/images/Active_Shipping_and_Logistics_Service_3.jpg" alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" className="img-fluid radius-image" />
-                    <img src="assets/images/Active_Shipping_and_Logistics_Service_4.jpg" alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" className="img-fluid radius-image" />
-                  </div>
-
-
-                </div>
-              </div>
+        {/* Hero Telemetry Metrics Bar */}
+        <div className="hero-telemetry-bar">
+          <div className="telemetry-item">
+            <span className="telemetry-label">Annual Cargo Volume</span>
+            <div className="telemetry-val">
+              120,000+ <span className="unit">TEU</span>
             </div>
-
           </div>
-        </div>
-      </section>
-      {/*//w3-grids*/}
-      {/*/testimonials*/}
-
-      <section className="w3l" id="">
-        <div className="cusrtomer-layout py-5">
-          <img src="assets/images/10years.jpg" alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" style={{ width: '90px', float: 'right', top: '80px', right: '80px' }} />
-          <div className="container py-md-5">
-            <div className="text-center">
-              <h6 className="title-subw3hny">Our Happy Clients</h6>
-              <h3 className="title-w3l two mb-5"></h3>
+          <div className="telemetry-item">
+            <span className="telemetry-label">On-Time Arrival Rate</span>
+            <div className="telemetry-val">
+              99.4 <span className="unit">%</span>
             </div>
-            <div className="testimonial-width pt-lg-4">
-              <div id="owl-demo1" className="owl-two owl-carousel owl-theme">
-                <div className="item">
-                  <div className="col-lg-12 w3hny-passion-item">
-                    <div className="row">
-                      <div className="col-6 passion-grid-item-pic">
-
-                        <img src="assets/images/clients/bagla-group.png" alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" style={{ width: '250px' }} className="img-fluid radius-image" />
-                        <img src="assets/images/clients/Hyundai_Mobis.png" alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" style={{ width: '250px' }} className="img-fluid radius-image" />
-                        <img src="assets/images/clients/sigachi.png" style={{ width: '250px' }} alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" className="img-fluid radius-image" />
-                        <img src="assets/images/clients/alkon.png" alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" style={{ width: '250px' }} className="img-fluid radius-image" />
-                        <img src="assets/images/clients/Ganesh Benzoplast Limited 2.jpg" alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" style={{ width: '250px' }} className="img-fluid radius-image" />
-                        <img src="assets/images/clients/amocon-logo.png" alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" style={{ width: '250px' }} className="img-fluid radius-image" />
-                      </div>
-
-                      <div className="col-6 passion-grid-item-pic">
-                        <img src="assets/images/clients/STERLITE TECH.png" alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" style={{ width: '250px' }} className="img-fluid radius-image" />
-                        <img src="assets/images/clients/Bajaj_Auto_Ltd.png" alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" style={{ width: '250px' }} className="img-fluid radius-image" />
-                        <img src="assets/images/clients/nclbuildtek.com.png" style={{ width: '250px' }} alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" className="img-fluid radius-image" />
-                        <img src="assets/images/clients/KABRA.png" alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" style={{ width: '250px' }} className="img-fluid radius-image" />
-                        <img src="assets/images/clients/RELAXO.png" alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" style={{ width: '250px' }} className="img-fluid radius-image" />
-                        <img src="assets/images/clients/itaca.jpg" style={{ width: '250px' }} alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" className="img-fluid radius-image" />
-                      </div>
-
-
-                    </div>
-                  </div>
-                </div>
-                <div className="item">
-                  <div className="col-lg-12 w3hny-passion-item">
-                    <div className="row">
-                      <div className="col-6 passion-grid-item-pic">
-                        <img src="assets/images/clients/KABRA.png" alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" style={{ width: '250px' }} className="img-fluid radius-image" />
-                        <img src="assets/images/clients/MOBIS.jpg" alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" style={{ width: '250px' }} className="img-fluid radius-image" />
-
-                      </div>
-
-                      <div className="col-6 passion-grid-item-pic">
-                        <img src="assets/images/clients/RELAXO.png" alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" style={{ width: '250px' }} className="img-fluid radius-image" />
-                        <img src="assets/images/clients/SIGACHI.jpg" style={{ width: '250px' }} alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" className="img-fluid radius-image" />
-                      </div>
-
-
-                    </div>
-                  </div>
-                </div>
-                <div className="item">
-                  <div className="col-lg-12 w3hny-passion-item">
-                    <div className="row">
-                      <div className="col-6 passion-grid-item-pic">
-                        <img src="assets/images/clients/alkon.png" alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" style={{ width: '250px' }} className="img-fluid radius-image" />
-                        <img src="assets/images/clients/STERLITE TECH.png" alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" style={{ width: '250px' }} className="img-fluid radius-image" />
-
-                      </div>
-
-                      <div className="col-6 passion-grid-item-pic">
-                        <img src="assets/images/clients/Ganesh Benzoplast Limited 2.jpg" alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" style={{ width: '250px' }} className="img-fluid radius-image" />
-                        <img src="assets/images/clients/ITACA.jpg" style={{ width: '250px' }} alt="ACTIVE SHIPPING AND LOGISTICS. Freight Services Mumbai India" className="img-fluid radius-image" />
-                      </div>
-
-
-                    </div>
-                  </div>
-                </div>
-              </div>
+          </div>
+          <div className="telemetry-item">
+            <span className="telemetry-label">Global Ports Linked</span>
+            <div className="telemetry-val">
+              45+ <span className="unit">HUBS</span>
+            </div>
+          </div>
+          <div className="telemetry-item">
+            <span className="telemetry-label">Customs Clearance Speed</span>
+            <div className="telemetry-val">
+              &lt; 24 <span className="unit">HOURS</span>
             </div>
           </div>
         </div>
       </section>
 
-      {/*//testimonials*/}
+      {/* 2. PINNED HORIZONTAL SCROLL: CORE CAPABILITIES (Seasats Style) */}
+      <HorizontalScrollSection
+        id="capabilities"
+        label="Capabilities // 01"
+        title="Engineered Freight & Logistics Operations"
+        subtitle="Scroll through our specialized ocean, air, and dangerous goods logistics solutions designed for demanding international supply chains."
+        items={capabilities}
+      />
 
-      {/*/w3l-subscribe*/}
+      {/* 3. PINNED HORIZONTAL SCROLL: PRESS & MISSION LOGS (Seasats #press Style) */}
+      <HorizontalScrollSection
+        id="press"
+        label="Press & Missions // 02"
+        title="Mission Deployments & Industry Accreditations"
+        subtitle="Track record of completed multi-modal deployments, certifications, and high-capacity global supply line management."
+        items={pressMissions}
+      />
 
-      {/*//w3l-subscribe*/}
-      {/*/footer-9*/}
-      <footer className="w3l-footer9">
-        <section className="footer-inner-main py-5">
-          <div className="container py-md-3">
-            <div className="right-side">
-              <div className="row footer-hny-grids sub-columns">
-                <div className="col-lg-4 sub-one-left pe-lg-5">
-                  <h6>About </h6>
-                  <h6>ACTIVE SHIPPING AND LOGISTICS</h6>
-                  <p className="footer-phny pe-lg-3">Indian International freight forwarding company in Mumbai, Air Freight, Sea Freight, Road Transport, Warehousing Distribution, Customs Clearance, Dangerous goods, Packing and Removals,Transshipment (sea to air, air to air), Project management, RO-RO and Break bulk</p>
-                  <div className="columns-2 mt-lg-5 mt-4">
-                    <ul className="social">
-                      <li><a href="https://www.facebook.com/people/Active-Shipping-and-Logistics/100054488078426/" target="_blank" rel="noreferrer"><span className="fab fa-facebook-f"></span></a>
-                      </li>
-                      <li><a href="#linkedin"><span className="fab fa-linkedin-in"></span></a>
-                      </li>
-                      <li><a href="#twitter"><span className="fab fa-twitter"></span></a>
-                      </li>
-                      <li><a href="#google"><span className="fab fa-google-plus-g"></span></a>
-                      </li>
+      {/* 4. INTERACTIVE OCEAN ROUTES & RADAR MAP */}
+      <RouteMap />
 
-                    </ul>
-                  </div>
-                </div>
-                <div className="col-lg-2 sub-two-right">
-                  <h6>Useful Links</h6>
-                  <ul>
-                    <li><a href="index.html">Home</a>
-                    </li>
-                    <li><a href="about.html">About Us</a>
-                    </li>
+      {/* 5. INSTANT FREIGHT & VOYAGE COST CALCULATOR */}
+      <QuoteCalculator />
 
-                    <li><a href="services.html">Services</a>
-                    </li>
+      {/* 6. COMPARISON & BENCHMARK MATRIX */}
+      <ComparisonMatrix />
 
-                    <li><a href="locations.html">Locations</a>
-                    </li>
-                    <li><a href="contact.html">Contact</a></li>
-                  </ul>
-                </div>
-                <div className="col-lg-2 sub-two-right">
-                  <h6>Services</h6>
-                  <ul>
-
-                    <li><a href="Active-Shipping-and-Logistics-Air-Freight.html">Air Freight</a>
-                    </li>
-                    <li><a href="Active-Shipping-and-Logistics-Ocean-Freight.html">Ocean Freight
-                    </a>
-                    </li>
-                    <li><a href="Active-Shipping-and-Logistics-Land-Transportation.html">Land Transportation
-                    </a></li>
-                    <li><a href="Active-Shipping-and-Logistics-Warehousing-and-Distribution.html">Warehousing and distribution
-                    </a></li>
-                    <li><a href="Active-Shipping-and-Logistics-Customs-Clearance-and-Door-delivery.html">Customs Clearance</a></li>
-
-
-                  </ul>
-                </div>
-                <div className="col-lg-2 sub-two-right">
-                  <h6>Services</h6>
-                  <ul>
-                    <li><a href="Active-Shipping-and-Logistics-Packing-and-Removals.html">Packing and removals</a>
-                    </li>
-                    <li><a href="Active-Shipping-and-Logistics-Dangerous-Goods.html">Dangerous goods</a></li>
-                    <li><a href="services.html">Transshipment (sea to air, air to air)
-                    </a>
-                    </li>
-                    <li><a href="services.html">Project management
-                    </a></li>
-                    <li><a href="services.html">RO-RO and Break bulk
-                    </a></li>
-
-
-
-                  </ul>
-                </div>
-                <div className="col-lg-2 sub-two-right">
-                  <h6>Barnche Office</h6>
-                  <ul>
-                    <li><a href="contact.html">Mumbai , M.H</a>
-                    </li>
-                    <li><a href="locations.html">Visakhapatnam, A.P</a>
-                    </li>
-                    <li><a href="locations.html">Kakinada, A.P</a>
-                    </li>
-
-                    <li><a href="locations.html">Kolkata, W.B</a>
-                    </li>
-
-                    <li><a href="locations.html">Chennai, T.N</a>
-                    </li>
-                    <li><a href="locations.html">Mundra, G.J</a>
-                    </li>
-                    <li><a href="locations.html">Hyderabad, T.L</a>
-                    </li>
-                    <li><a href="locations.html">Delhi</a>
-                    </li>
-                  </ul>
-                </div>
+      {/* 7. TERMINAL FOOTER & CONTACT SECTION */}
+      <footer id="contact" className="site-footer">
+        <div className="footer-grid">
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+              <div className="nav-logo-badge" style={{ width: '36px', height: '36px' }}>
+                <Anchor size={18} color="var(--color-primary)" />
+              </div>
+              <div style={{ fontFamily: 'var(--font-heading)', fontSize: 'clamp(1rem, 4vw, 1.2rem)', fontWeight: '800', color: 'var(--text-main)' }}>
+                ACTIVE SHIPPING AND LOGISTICS
               </div>
             </div>
-            <div className="below-section mt-5">
-              <div className="copyright-footer">
-                <div className="columns text-left">
-
-                  <p>© <b id="year">{new Date().getFullYear()}</b> Active Shipping and Logistics. All rights reserved.Design by <a href="https://vikrantchaudhari.com/" target="_blank" rel="noreferrer">VS</a> with <a href="https://w3layouts.com/" target="_blank" rel="noreferrer">W3layouts</a>
-                  </p>
-                </div>
-                <ul className="footer-w3list text-right">
-                  <li><a href="#url">Privacy Policy</a>
-                  </li>
-                  <li><a href="#url">Terms &amp; Conditions</a>
-                  </li>
-                </ul>
-              </div>
-
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: '1.7', marginBottom: '24px' }}>
+              Premier freight forwarding, customs clearance, and multi-modal logistics enterprise head-quartered in Mumbai, India.
+            </p>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem', color: 'var(--text-dim)' }}>
+              HQ TELEMETRY: 18Â°55'N, 72Â°50'E // INBOM
             </div>
           </div>
-        </section>
-        {/* move top */}
-        <button
-          onClick={topFunction}
-          id="movetop"
-          title="Go to top"
-          style={{ display: showTop ? 'block' : 'none' }}
-        >
-          <span className="fas fa-level-up-alt" aria-hidden="true"></span>
-        </button>
-        {/* //move top */}
+
+          <div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--color-primary)', textTransform: 'uppercase', marginBottom: '20px', letterSpacing: '0.08em' }}>
+              Direct HQ Inquiries
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '0.9rem' }}>
+              <a href="mailto:sales@activeshpg.com" style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-main)', textDecoration: 'none' }}>
+                <Mail size={16} color="var(--color-primary)" />
+                sales@activeshpg.com
+              </a>
+              <a href="mailto:contact@activeshpg.com" style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-main)', textDecoration: 'none' }}>
+                <Mail size={16} color="var(--color-primary)" />
+                contact@activeshpg.com
+              </a>
+              <a href="tel:+919833672298" style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-main)', textDecoration: 'none' }}>
+                <Phone size={16} color="var(--color-emerald)" />
+                +91 9833672298 / +91 9821253239
+              </a>
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--color-primary)', textTransform: 'uppercase', marginBottom: '20px', letterSpacing: '0.08em' }}>
+              Port Terminal Office
+            </div>
+            <div style={{ display: 'flex', alignItems: 'start', gap: '10px', color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: '1.6' }}>
+              <MapPin size={18} color="var(--color-copper)" style={{ flexShrink: 0, marginTop: '4px' }} />
+              <div>
+                Navjeevan Co-Op, Office No. 18,<br />
+                Malad East, Mumbai - 400097, Maharashtra, India.<br />
+                <span style={{ color: 'var(--color-primary)', fontSize: '0.8rem', fontFamily: 'var(--font-mono)' }}>Direct Port Access: JNPT / Nhava Sheva</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="footer-bottom">
+          <div>Â© {new Date().getFullYear()} ACTIVE SHIPPING AND LOGISTICS. ALL RIGHTS RESERVED.</div>
+          <div className="footer-badges">
+            <span>IMO CERTIFIED</span>
+            <span>IATA AGENT</span>
+            <span>CUSTOMS HOUSE BROKER</span>
+          </div>
+        </div>
       </footer>
-      {/*//footer-9 */}
     </>
   )
 }
